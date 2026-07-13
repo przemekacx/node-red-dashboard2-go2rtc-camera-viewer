@@ -1,9 +1,9 @@
 # node-red-dashboard2-go2rtc-camera-viewer
 Simple live low-latency WebRTC camera viewer for Node-RED FlowFuse Dashboard 2
 
-![Node-RED](https://img.shields.io/badge/Node--RED-3.x-red)
+![Node-RED](https://img.shields.io/badge/Node--RED-5.x-red)
 ![Dashboard](https://img.shields.io/badge/FlowFuse-Dashboard_2-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+
 
 ## 📖  What is this?
 With this project you can define and view live camera streams on **Node-RED Dashboard 2**.
