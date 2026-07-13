@@ -1,0 +1,48 @@
+streams:
+  domofon:
+    - rtsp://user:password@192.168.1.20/cam/realmonitor?channel=1&subtype=0#backchannel=0
+
+  garaz:
+    - rtsp://user:password@192.168.1.21/Preview_01_sub
+    - ffmpeg:garaz#video=copy#audio=none
+
+  taras:
+    - rtsp://user:password@192.168.1.22/Preview_01_sub
+    - ffmpeg:taras#video=copy#audio=none
+
+  poludnie:
+    - rtsp://user:password@192.168.1.23/Preview_01_sub
+    - ffmpeg:poludnie#video=copy#audio=none
+
+  droga:
+    - rtsp://user:password@192.168.1.24/Preview_01_sub
+    - ffmpeg:droga#video=copy#audio=none
+
+  wejscie:
+    - rtsp://user:password@192.168.1.25/Preview_01_sub
+    - ffmpeg:wejscie#video=copy#audio=none
+
+  domek_main:
+    - rtsp://192.168.1.26:554/channel=0_stream=1
+  domek_src:
+    # Camera requires longer startup time
+    - ffmpeg:domek_main#video=h264#timeout=20
+
+  alpr_crop:
+    - ffmpeg:rtsp://user:password@192.168.1.27:554/0
+
+api:
+  listen: ":1984"
+  origin: "*"
+  
+webrtc:
+  listen: ":8555"
+  candidates:
+    - YOUR_GO2RTC_IP:8555
+
+
+ffmpeg:
+  timeout: 15
+
+
+

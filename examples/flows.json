@@ -1,0 +1,100 @@
+[
+    {
+        "id": "13108093987979c2",
+        "type": "ui-template",
+        "z": "a5457e95e4e54213",
+        "group": "48fc19d1161f11e6",
+        "page": "",
+        "ui": "",
+        "name": "6 cameras grid",
+        "order": 1,
+        "width": "0",
+        "height": "0",
+        "format": "<template>\n  <div class=\"grid\">\n    <div\n      v-for=\"cam in cameras\"\n      :key=\"cam\"\n      class=\"cell\"\n      :class=\"{\n        active: activeCam === cam,\n        big: activeCam === cam,\n        tall: tallCameras.includes(cam)\n      }\"\n      @click=\"selectCam(cam)\"\n    >\n      <video :ref=\"'video_' + cam\" autoplay muted playsinline></video>\n      <div class=\"label\">{{ cam }}</div>\n    </div>\n  </div>\n</template>\n\n\n<script>\n\n\nexport default {\n  data() {\n    return {\n      // -----------------------------------------------------------------------------\n      // Configuration\n      // -----------------------------------------------------------------------------\n\n      // Enable browser console logging\n      debug: false,\n\n      // Camera stream names from go2rtc\n      cameras: [\n        \"domofon\",\n        \"garaz\",\n        \"taras\",\n        \"poludnie\",\n        \"droga\",\n        \"wejscie\",\n        \"alpr_crop\",\n        \"domek_src\"\n      ],\n      // Cameras displayed as double height\n      tallCameras: [\n        \"domek_src\"\n      ],\n\n      // go2rtc WebRTC endpoint\n      // Direct connection (local network)\n      // Replace YOUR_GO2RTC_IP with your server IP\n      go2rtcUrl: \"http://YOUR_GO2RTC_IP:1984/api/webrtc\",\n\n      // Reverse proxy example\n      // go2rtcUrl: \"/go2rtc/webrtc\";\n\n\n      // -----------------------------------------------------------------------------\n      // Runtime\n      // -----------------------------------------------------------------------------\n      peerConnections: {},\n      activeCam: null,\n\n    };\n  },\n\n  mounted() {\n    this.cameras.forEach(cam => this.start(cam));\n  },\n\n  methods: {\n\n    log(...args) {\n        if (!this.debug) return;\n        console.log(\n            `[${new Date().toLocaleTimeString()}]`,\n            ...args\n        );\n    },\n\n    selectCam(cam) {\n      this.activeCam = this.activeCam === cam ? null : cam;\n\n      this.send({\n        payload: this.activeCam\n      });\n    },\n\n    async start(cam) {\n\n      this.log(`[${cam}] START`);\n\n      const ref = this.$refs[\"video_\" + cam];\n      const video = Array.isArray(ref) ? ref[0] : ref;\n\n      if (!video) {\n        console.warn(\"Video element not found:\", cam);\n        return;\n      }\n\n      // Close previous connection\n      if (this.peerConnections[cam]) {\n        this.peerConnections[cam].onconnectionstatechange = null;\n        this.peerConnections[cam].oniceconnectionstatechange = null;\n        this.peerConnections[cam].close();\n        delete this.peerConnections[cam];\n      }\n\n      const pc = new RTCPeerConnection();\n      this.peerConnections[cam] = pc;\n\n      // Incoming media\n      pc.ontrack = (event) => {\n\n        \n        this.log(`[${cam}] TRACK`);\n\n        video.srcObject = event.streams[0];\n        video.muted = true;\n\n        const tryPlay = () => {\n          video.play().catch(() => {\n            setTimeout(tryPlay, 500);\n          });\n        };\n\n        tryPlay();\n      };\n\n      // ICE state\n      pc.oniceconnectionstatechange = () => {\n        \n        this.log(`[${cam}] ICE:`, pc.iceConnectionState);\n      };\n\n      // Connection state\n      pc.onconnectionstatechange = () => {\n        \n          this.log(`[${cam}] STATE:`, pc.connectionState);\n\n          if (\n              this.peerConnections[cam] !== pc\n          ) {\n              return;\n          }\n\n          if (\n              pc.connectionState === \"failed\" ||\n              pc.connectionState === \"disconnected\"\n          ) {\n            \n              this.log(`[${cam}] RECONNECT`);\n\n              setTimeout(() => {\n\n                  if (\n                      this.peerConnections[cam] !== pc ||\n                      pc.connectionState === \"connected\"\n                  ) {\n                      return;\n                  }\n\n                  this.start(cam);\n\n              }, 2000);\n          }\n      };\n\n      pc.addTransceiver(\"video\", {\n        direction: \"recvonly\"\n      });\n\n      const offer = await pc.createOffer();\n      await pc.setLocalDescription(offer);\n\n      const res = await fetch(\n          `${this.go2rtcUrl}?src=${cam}`,\n        {\n          method: \"POST\",\n          body: offer.sdp,\n          headers: {\n            \"Content-Type\": \"application/sdp\"\n          }\n        }\n      );\n\n      const answer = {\n        type: \"answer\",\n        sdp: await res.text()\n      };\n\n      await pc.setRemoteDescription(answer);\n\n      \n        this.log(`[${cam}] REMOTE SDP`);\n    }\n  }\n};\n</script>\n\n<style>\n\n\n  .grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n/* kafelek */\n.cell {\n  position: relative;\n  cursor: pointer;\n  overflow: hidden;\n  background: black;\n  border-radius: 10px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  transition: all 0.25s ease;\n}\n\n/* 🔥 normalne kamery */\n.cell:not(.tall) {\n  aspect-ratio: 16 / 9;\n}\n\n/* 🔥 wysoka kamera */\n.cell.tall {\n  aspect-ratio: auto;\n}\n\n/* 🔥 powiększona */\n.cell.big {\n  grid-column: span 2;\n}\n\n/* hover */\n.cell:hover {\n  transform: scale(1.02);\n  box-shadow: 0 4px 14px rgba(0,0,0,0.6);\n}\n\n/* klik */\n.cell:active {\n  transform: scale(0.98);\n}\n\n/* aktywna */\n.cell.active {\n  outline: 3px solid #00bcd4;\n  box-shadow: 0 0 14px rgba(0,188,212,0.7);\n}\n\n/* video */\nvideo {\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n}\n/* label */\n.label {\n  position: absolute;\n  bottom: 8px;\n  left: 8px;\n  padding: 3px 8px;\n  font-size: 12px;\n  color: white;\n  background: rgba(0,0,0,0.55);\n  border-radius: 6px;\n}\n\n</style>",
+        "storeOutMessages": true,
+        "passthru": false,
+        "templateScope": "local",
+        "className": "",
+        "x": 580,
+        "y": 200,
+        "wires": [
+            [
+                "344157ab126326e7"
+            ]
+        ]
+    },
+    {
+        "id": "48fc19d1161f11e6",
+        "type": "ui-group",
+        "name": "node-red-dashboard2-go2rtc-camera-viewer",
+        "page": "19eb6d108e9275e2",
+        "width": "20",
+        "height": "13",
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "19eb6d108e9275e2",
+        "type": "ui-page",
+        "name": "Examples",
+        "ui": "03ae739120d8cef5",
+        "path": "/examples",
+        "icon": "",
+        "layout": "notebook",
+        "theme": "a965ccfef139317a",
+        "order": 5,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "03ae739120d8cef5",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "a965ccfef139317a",
+        "type": "ui-theme",
+        "name": "Default",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094ce",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "558065a85573b0a1",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@flowfuse/node-red-dashboard": "1.30.2"
+        }
+    }
+]
